@@ -437,13 +437,6 @@ void *mm_malloc(size_t size)
     ptrFreeBlock = (BlockInfo*)UNSCALED_POINTER_ADD(ptrAllBlock, SIZE(ptrAllBlock->sizeAndTags));
     ptrFreeBlock->sizeAndTags = ptrFreeBlock->sizeAndTags | TAG_PRECEDING_USED;
     ptrAllBlock->sizeAndTags = blockSize | TAG_USED;
-    if(!((ptrFreeBlock->sizeAndTags) & TAG_USED))
-    {
-      ptrFreeBlock = (BlockInfo *)(UNSCALED_POINTER_ADD(ptrFreeBlock, SIZE(ptrFreeBlock->sizeAndTags) - WORD_SIZE));
-      ptrFreeBlock->sizeAndTags |= TAG_PRECEDING_USED;
-    
-    }
-
   }
  
   return UNSCALED_POINTER_ADD(ptrAllBlock,WORD_SIZE);

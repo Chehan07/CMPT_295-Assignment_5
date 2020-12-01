@@ -377,8 +377,11 @@ void *mm_malloc(size_t size)
 {
   size_t reqSize;
   BlockInfo *ptrFreeBlock = NULL;
+  BlockInfo *ptrAllBlock = NULL;
+  BlockInfo *ptrFooter = NULL;
   size_t blockSize;
   size_t precedingBlockUseTag;
+  size_t free_size;
 
   // Zero-size requests get NULL.
   if (size == 0)
@@ -405,7 +408,45 @@ void *mm_malloc(size_t size)
   // TODO: Implement mm_malloc.  You can change or remove any of the
   // above code.  It is included as a suggestion of where to start.
   // You will want to replace this return statement...
-  return NULL;
+  if((ptrAllBlock = searchFreeList(reqSize)) == NULL)
+  {
+    requestMoreSpace(reqSize);
+    ptrAllBlock = searchFreeList(reqSize);
+  }
+
+  blockSize = SIZE(ptrAllBlock->sizeAndTags);
+  precedingBlockUseTag = ptrAllBlock->sizeAndTags & TAG_PRECEDING_USED;
+
+  removeFreeBlock(ptrAllBlock);
+  ptrAllBlock->sizeAndTags = ptrAllBlock->sizeAndTags | TAG_USED;
+
+  if((blockSize - reqSize) >= MIN_BLOCK_SIZE)
+  {
+    free_size = blockSize - reqSize;
+    ptrFreeBlock =(BlockInfo*)UNSCALED_POINTER_ADD(ptrAllBlock, reqSize);
+    ptrFreeBlock->sizeAndTags = free_size| TAG_PRECEDING_USED;
+    ptrFreeBlock->sizeAndTags = ptrFreeBlock->sizeAndTags & (~TAG_USED);
+    ptrFooter = (BlockInfo*)UNSCALED_POINTER_ADD(ptrFreeBlock, free_size - WORD_SIZE);
+    ptrFooter->sizeAndTags = ptrFreeBlock->sizeAndTags;
+    insertFreeBlock(ptrFreeBlock);
+    coalesceFreeBlock(ptrFreeBlock);
+    ptrAllBlock->sizeAndTags = reqSize | (precedingBlockUseTag | TAG_USED);
+  }
+  else
+  {
+    ptrFreeBlock = (BlockInfo*)UNSCALED_POINTER_ADD(ptrAllBlock, SIZE(ptrAllBlock->sizeAndTags));
+    ptrFreeBlock->sizeAndTags = ptrFreeBlock->sizeAndTags | TAG_PRECEDING_USED;
+    ptrAllBlock->sizeAndTags = blockSize | TAG_USED;
+    if(!((ptrFreeBlock->sizeAndTags) & TAG_USED))
+    {
+      ptrFreeBlock = (BlockInfo *)(UNSCALED_POINTER_ADD(ptrFreeBlock, SIZE(ptrFreeBlock->sizeAndTags) - WORD_SIZE));
+      ptrFreeBlock->sizeAndTags |= TAG_PRECEDING_USED;
+    
+    }
+
+  }
+ 
+  return UNSCALED_POINTER_ADD(ptrAllBlock,WORD_SIZE);
 }
 
 /* Free the block referenced by ptr. */
@@ -414,9 +455,23 @@ void mm_free(void *ptr)
   size_t payloadSize;
   BlockInfo *blockInfo;
   BlockInfo *followingBlock;
+  // BlockInfo *previousBlock;
 
   // TODO: Implement mm_free.  You can change or remove the declaraions
   // above.  They are included as minor hints.
+  blockInfo = (BlockInfo *)UNSCALED_POINTER_SUB(ptr, WORD_SIZE);
+  blockInfo->sizeAndTags = (blockInfo->sizeAndTags) & (~TAG_USED);
+  payloadSize = SIZE(blockInfo->sizeAndTags);
+  
+  followingBlock = (BlockInfo *)UNSCALED_POINTER_ADD(ptr, payloadSize);
+  followingBlock->sizeAndTags = (followingBlock->sizeAndTags) & (~TAG_PRECEDING_USED);
+
+  insertFreeBlock(blockInfo);
+  // previousBlock = (BlockInfo *)UNSCALED_POINTER_SUB(ptr, 2*WORD_SIZE);
+  // if(previousBlock->sizeAndTags == (previousBlock->sizeAndTags & (~TAG_USED))){
+  //   coalesceFreeBlock(blockInfo);
+  // }
+    
 }
 
 // TODO: Implement a heap consistency checker as needed.
